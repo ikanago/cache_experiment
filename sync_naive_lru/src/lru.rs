@@ -45,12 +45,18 @@ where
     /// Attach `node` to the head of linked list.
     fn attach(&mut self, node: NodeRef<K, V>) {
         if self.head.is_some() {
-            (*node.borrow_mut()).next = Some(Rc::clone(&self.head.as_ref().unwrap()));
+            (*node.borrow_mut()).next = Some(Rc::clone(self.head.as_ref().unwrap()));
         } else {
             self.tail = Some(Rc::clone(&node));
         }
         // (*self.head.as_ref().unwrap().borrow_mut()).next = Some(Rc::clone(&node));
         self.head = Some(Rc::clone(&node));
+    }
+}
+
+impl<K: Hash + Eq + Clone, V> Default for SyncNaiveLru<K, V> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

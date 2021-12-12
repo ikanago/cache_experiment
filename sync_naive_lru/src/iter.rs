@@ -21,22 +21,22 @@ where
                     current.as_ref().borrow().key.clone(),
                     current.as_ref().borrow().value.clone(),
                 );
-                self.current = match &current.borrow().next {
-                    Some(next) => Some(Rc::clone(&next)),
-                    None => None,
-                };
+                self.current = current.borrow().next.as_ref().map(|next| Rc::clone(next));
                 Some(item)
             }
         }
     }
 }
 
-impl<K, V> SyncNaiveLru<K, V>
+impl<K, V> IntoIterator for SyncNaiveLru<K, V>
 where
     K: Hash + Eq + Clone,
     V: Clone,
 {
-    pub fn into_iter(self) -> IntoIter<K, V> {
+    type Item = (K, V);
+    type IntoIter = IntoIter<K, V>;
+
+    fn into_iter(self) -> IntoIter<K, V> {
         IntoIter { current: self.head }
     }
 }
