@@ -35,7 +35,7 @@ pub struct SyncNaiveLru<K, V> {
 
 impl<K, V> SyncNaiveLru<K, V>
 where
-    K: Hash + Eq + Clone,
+    K: Hash + Eq + Clone + std::fmt::Debug,
 {
     pub fn new(capacity: usize) -> Self {
         Self {
@@ -53,7 +53,10 @@ where
 
         if self.map.len() == self.capacity + 1 {
             let tail = self.tail.clone().expect("There must be at least 1 element");
+            // TODO: remove clone() for key.
+            let removing_key = tail.as_ref().borrow().key.clone();
             self.detach(tail);
+            self.map.remove(&removing_key);
         }
     }
 
@@ -65,7 +68,7 @@ where
         } else {
             self.tail = Some(Rc::clone(&node));
         }
-        self.head = Some(Rc::clone(&node));
+        self.head = Some(node);
     }
 
     fn detach(&mut self, node: NodeRef<K, V>) {
@@ -153,6 +156,7 @@ mod tests {
         let expected = vec![(1, 2), (3, 4), (5, 6), (7, 8)];
         expected.iter().for_each(|kv| lru.insert(kv.0, kv.1));
 
+        assert!(lru.map.get(&1).is_none());
         assert_eq!(
             lru.into_iter().collect::<Vec<_>>(),
             vec![(3, 4), (5, 6), (7, 8)]
