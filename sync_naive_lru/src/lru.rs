@@ -30,17 +30,19 @@ pub struct SyncNaiveLru<K, V> {
     map: HashMap<K, NodeRef<K, V>>,
     head: Option<NodeRef<K, V>>,
     pub(crate) tail: Option<NodeRef<K, V>>,
+    capacity: usize,
 }
 
 impl<K, V> SyncNaiveLru<K, V>
 where
     K: Hash + Eq + Clone,
 {
-    pub fn new() -> Self {
+    pub fn new(capacity: usize) -> Self {
         Self {
             map: HashMap::new(),
             head: None,
             tail: None,
+            capacity,
         }
     }
 
@@ -48,6 +50,11 @@ where
         let node = Rc::new(RefCell::new(Node::new(key.clone(), value)));
         self.map.insert(key, Rc::clone(&node));
         self.attach(node);
+
+        if self.map.len() == self.capacity + 1 {
+            let tail = self.tail.clone().expect("There must be at least 1 element");
+            self.detach(tail);
+        }
     }
 
     /// Attach `node` to the head of linked list.
@@ -90,36 +97,35 @@ where
     }
 }
 
-impl<K: Hash + Eq + Clone, V> Default for SyncNaiveLru<K, V> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn setup_lru_with_capacity_3() -> SyncNaiveLru<i32, i32> {
+        let mut lru = SyncNaiveLru::new(3);
+        vec![(1, 2), (3, 4), (5, 6)]
+            .iter()
+            .for_each(|kv| lru.insert(kv.0, kv.1));
+        lru
+    }
+
     #[test]
     fn just_insert() {
-        let mut lru = SyncNaiveLru::new();
-        let expected = vec![(1, 2), (3, 4), (5, 6)];
-        expected.iter().for_each(|kv| lru.insert(kv.0, kv.1));
-
+        let lru = setup_lru_with_capacity_3();
         let tail = lru.tail.as_ref().unwrap();
         assert_eq!(
             (tail.as_ref().borrow().key, tail.as_ref().borrow().value),
             (1, 2)
         );
-        assert_eq!(lru.into_iter().collect::<Vec<_>>(), expected);
+        assert_eq!(
+            lru.into_iter().collect::<Vec<_>>(),
+            vec![(1, 2), (3, 4), (5, 6)]
+        );
     }
 
     #[test]
     fn detach_head() {
-        let mut lru = SyncNaiveLru::new();
-        vec![(1, 2), (3, 4), (5, 6)]
-            .iter()
-            .for_each(|kv| lru.insert(kv.0, kv.1));
+        let mut lru = setup_lru_with_capacity_3();
         let node = Rc::clone(lru.map.get(&5).unwrap());
         lru.detach(node);
         assert_eq!(lru.into_iter().collect::<Vec<_>>(), vec![(1, 2), (3, 4)]);
@@ -127,10 +133,7 @@ mod tests {
 
     #[test]
     fn detach_middle() {
-        let mut lru = SyncNaiveLru::new();
-        vec![(1, 2), (3, 4), (5, 6)]
-            .iter()
-            .for_each(|kv| lru.insert(kv.0, kv.1));
+        let mut lru = setup_lru_with_capacity_3();
         let node = Rc::clone(lru.map.get(&3).unwrap());
         lru.detach(node);
         assert_eq!(lru.into_iter().collect::<Vec<_>>(), vec![(1, 2), (5, 6)]);
@@ -138,12 +141,21 @@ mod tests {
 
     #[test]
     fn detach_tail() {
-        let mut lru = SyncNaiveLru::new();
-        vec![(1, 2), (3, 4), (5, 6)]
-            .iter()
-            .for_each(|kv| lru.insert(kv.0, kv.1));
+        let mut lru = setup_lru_with_capacity_3();
         let node = Rc::clone(lru.map.get(&1).unwrap());
         lru.detach(node);
         assert_eq!(lru.into_iter().collect::<Vec<_>>(), vec![(3, 4), (5, 6)]);
+    }
+
+    #[test]
+    fn exceeding_insert() {
+        let mut lru = SyncNaiveLru::new(3);
+        let expected = vec![(1, 2), (3, 4), (5, 6), (7, 8)];
+        expected.iter().for_each(|kv| lru.insert(kv.0, kv.1));
+
+        assert_eq!(
+            lru.into_iter().collect::<Vec<_>>(),
+            vec![(3, 4), (5, 6), (7, 8)]
+        );
     }
 }
