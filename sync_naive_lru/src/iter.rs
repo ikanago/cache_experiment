@@ -37,6 +37,6 @@ where
     type IntoIter = IntoIter<K, V>;
 
     fn into_iter(self) -> IntoIter<K, V> {
-        IntoIter { current: self.head }
+        IntoIter { current: self.tail }
     }
 }
