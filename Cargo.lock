@@ -5,3 +5,7 @@ version = 3
 [[package]]
 name = "common"
 version = "0.1.0"
+
+[[package]]
+name = "sync_naive_lru"
+version = "0.1.0"
