@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     cell::RefCell,
     collections::HashMap,
     hash::Hash,
@@ -35,7 +36,8 @@ pub struct SyncNaiveLru<K, V> {
 
 impl<K, V> SyncNaiveLru<K, V>
 where
-    K: Hash + Eq + Clone + std::fmt::Debug,
+    K: Hash + Eq + Clone,
+    V: Clone,
 {
     pub fn new(capacity: usize) -> Self {
         Self {
@@ -60,10 +62,24 @@ where
         }
     }
 
+    pub fn get<Q>(&mut self, key: &Q) -> Option<V>
+    where
+        K: Borrow<Q>,
+        Q: Eq + Hash + ?Sized,
+    {
+        if let Some(node) = self.map.get(key).cloned() {
+            self.detach(Rc::clone(&node));
+            self.attach(Rc::clone(&node));
+            return Some(node.as_ref().borrow().value.clone());
+        }
+        None
+    }
+
     /// Attach `node` to the head of linked list.
     fn attach(&mut self, node: NodeRef<K, V>) {
         if self.head.is_some() {
             (*node.borrow_mut()).prev = Some(Rc::downgrade(self.head.as_ref().unwrap()));
+            (*node.borrow_mut()).next = None;
             (*self.head.as_ref().unwrap().borrow_mut()).next = Some(Rc::clone(&node));
         } else {
             self.tail = Some(Rc::clone(&node));
@@ -156,10 +172,20 @@ mod tests {
         let expected = vec![(1, 2), (3, 4), (5, 6), (7, 8)];
         expected.iter().for_each(|kv| lru.insert(kv.0, kv.1));
 
-        assert!(lru.map.get(&1).is_none());
+        assert_eq!(lru.get(&1), None);
         assert_eq!(
             lru.into_iter().collect::<Vec<_>>(),
             vec![(3, 4), (5, 6), (7, 8)]
+        );
+    }
+
+    #[test]
+    fn get_reorders_entry() {
+        let mut lru = setup_lru_with_capacity_3();
+        assert_eq!(lru.get(&3), Some(4));
+        assert_eq!(
+            lru.into_iter().collect::<Vec<_>>(),
+            vec![(1, 2), (5, 6), (3, 4)]
         );
     }
 }
