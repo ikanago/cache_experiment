@@ -1,3 +1,6 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+
 [tasks.format]
 install_crate = "rustfmt"
 command = "cargo"
@@ -13,7 +16,7 @@ command = "cargo"
 args = ["test"]
 dependencies = ["clippy"]
 
-[tasks.check]
+[tasks.all]
 dependencies = [
     "format",
     "clippy",
