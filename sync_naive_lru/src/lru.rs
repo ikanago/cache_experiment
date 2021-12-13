@@ -12,12 +12,12 @@ pub(crate) type NodeWeakRef<K, V> = Weak<RefCell<Node<K, V>>>;
 pub(crate) struct Node<K, V> {
     pub(crate) next: Option<NodeRef<K, V>>,
     pub(crate) prev: Option<NodeWeakRef<K, V>>,
-    pub(crate) key: K,
+    pub(crate) key: Rc<K>,
     pub(crate) value: V,
 }
 
 impl<K, V> Node<K, V> {
-    pub fn new(key: K, value: V) -> Self {
+    pub fn new(key: Rc<K>, value: V) -> Self {
         Self {
             next: None,
             prev: None,
@@ -28,7 +28,7 @@ impl<K, V> Node<K, V> {
 }
 
 pub struct SyncNaiveLru<K, V> {
-    map: HashMap<K, NodeRef<K, V>>,
+    map: HashMap<Rc<K>, NodeRef<K, V>>,
     head: Option<NodeRef<K, V>>,
     pub(crate) tail: Option<NodeRef<K, V>>,
     capacity: usize,
@@ -36,7 +36,7 @@ pub struct SyncNaiveLru<K, V> {
 
 impl<K, V> SyncNaiveLru<K, V>
 where
-    K: Hash + Eq + Clone,
+    K: Hash + Eq,
     V: Clone,
 {
     pub fn new(capacity: usize) -> Self {
@@ -49,22 +49,21 @@ where
     }
 
     pub fn insert(&mut self, key: K, value: V) {
-        let node = Rc::new(RefCell::new(Node::new(key.clone(), value)));
+        let key = Rc::new(key);
+        let node = Rc::new(RefCell::new(Node::new(Rc::clone(&key), value)));
         self.map.insert(key, Rc::clone(&node));
         self.attach(node);
 
         if self.map.len() == self.capacity + 1 {
             let tail = self.tail.clone().expect("There must be at least 1 element");
-            // TODO: remove clone() for key.
-            let removing_key = tail.as_ref().borrow().key.clone();
+            self.map.remove(&tail.as_ref().borrow().key);
             self.detach(tail);
-            self.map.remove(&removing_key);
         }
     }
 
     pub fn get<Q>(&mut self, key: &Q) -> Option<V>
     where
-        K: Borrow<Q>,
+        Rc<K>: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
         if let Some(node) = self.map.get(key).cloned() {
@@ -133,8 +132,11 @@ mod tests {
         let lru = setup_lru_with_capacity_3();
         let tail = lru.tail.as_ref().unwrap();
         assert_eq!(
-            (tail.as_ref().borrow().key, tail.as_ref().borrow().value),
-            (1, 2)
+            (
+                tail.as_ref().borrow().key.clone(),
+                tail.as_ref().borrow().value
+            ),
+            (Rc::new(1), 2)
         );
         assert_eq!(
             lru.into_iter().collect::<Vec<_>>(),

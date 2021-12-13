@@ -17,10 +17,9 @@ where
         match self.current.take() {
             None => None,
             Some(current) => {
-                let item = (
-                    current.as_ref().borrow().key.clone(),
-                    current.as_ref().borrow().value.clone(),
-                );
+                let key = current.as_ref().borrow().key.clone();
+                let value = current.as_ref().borrow().value.clone();
+                let item = ((*key).clone(), value);
                 self.current = current.borrow().next.as_ref().map(Rc::clone);
                 Some(item)
             }
