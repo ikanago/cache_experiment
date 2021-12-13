@@ -1,4 +1,5 @@
 use criterion::{criterion_group, Criterion};
+use common::Cache;
 use sync_naive_lru::SyncNaiveLru;
 
 fn insert() {

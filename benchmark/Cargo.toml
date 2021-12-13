@@ -9,6 +9,7 @@ edition = "2021"
 
 [dev-dependencies]
 criterion = "0.3"
+common = { path = "../common" }
 sync_naive_lru = { path = "../sync_naive_lru" }
 
 [[bench]]

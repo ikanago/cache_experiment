@@ -1,3 +1,4 @@
+use common::Cache;
 use std::{
     borrow::Borrow,
     cell::RefCell,
@@ -30,6 +31,8 @@ impl<K, V> Node<K, V> {
 /// LRU cache implemented by hash map and doubly-linked list.
 /// more recently accessed element lies head of the list and least recently accessed one lies the
 /// opposite.
+///
+/// This can be used only in synchronous context; not for multi-threaded or async runtime.
 pub struct SyncNaiveLru<K, V> {
     map: HashMap<Rc<K>, NodeRef<K, V>>,
     head: Option<NodeRef<K, V>>,
@@ -49,37 +52,6 @@ where
             tail: None,
             capacity,
         }
-    }
-
-    /// Insert a new key-value pair.
-    /// If the number of existing elements is `capacity`, remove least-recently accessed one.
-    pub fn insert(&mut self, key: K, value: V) {
-        let key = Rc::new(key);
-        let node = Rc::new(RefCell::new(Node::new(Rc::clone(&key), value)));
-        self.map.insert(key, Rc::clone(&node));
-        self.attach(node);
-
-        if self.map.len() == self.capacity + 1 {
-            let tail = self.tail.clone().expect("There must be at least 1 element");
-            self.map.remove(&tail.as_ref().borrow().key);
-            self.detach(tail);
-        }
-    }
-
-    /// Get clone of a value corresponding to `key`.
-    /// This requires mutable reference to `self` because this modifies the order of inner
-    /// elements; moves accessed element to head of the list.
-    pub fn get<Q>(&mut self, key: &Q) -> Option<V>
-    where
-        Rc<K>: Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        if let Some(node) = self.map.get(key).cloned() {
-            self.detach(Rc::clone(&node));
-            self.attach(Rc::clone(&node));
-            return Some(node.as_ref().borrow().value.clone());
-        }
-        None
     }
 
     /// Attach `node` to the head of linked list.
@@ -120,6 +92,43 @@ where
                 };
             }
         }
+    }
+}
+
+impl<K, V> Cache<K, V> for SyncNaiveLru<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    /// Insert a new key-value pair.
+    /// If the number of existing elements is `capacity`, remove least-recently accessed one.
+    fn insert(&mut self, key: K, value: V) {
+        let key = Rc::new(key);
+        let node = Rc::new(RefCell::new(Node::new(Rc::clone(&key), value)));
+        self.map.insert(key, Rc::clone(&node));
+        self.attach(node);
+
+        if self.map.len() == self.capacity + 1 {
+            let tail = self.tail.clone().expect("There must be at least 1 element");
+            self.map.remove(&tail.as_ref().borrow().key);
+            self.detach(tail);
+        }
+    }
+
+    /// Get clone of a value corresponding to `key`.
+    /// This requires mutable reference to `self` because this modifies the order of inner
+    /// elements; moves accessed element to head of the list.
+    fn get<Q>(&mut self, key: &Q) -> Option<V>
+    where
+        Rc<K>: Borrow<Q>,
+        Q: Eq + Hash + ?Sized,
+    {
+        if let Some(node) = self.map.get(key).cloned() {
+            self.detach(Rc::clone(&node));
+            self.attach(Rc::clone(&node));
+            return Some(node.as_ref().borrow().value.clone());
+        }
+        None
     }
 }
 
