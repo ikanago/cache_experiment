@@ -21,7 +21,7 @@ where
                     current.as_ref().borrow().key.clone(),
                     current.as_ref().borrow().value.clone(),
                 );
-                self.current = current.borrow().next.as_ref().map(|next| Rc::clone(next));
+                self.current = current.borrow().next.as_ref().map(Rc::clone);
                 Some(item)
             }
         }
