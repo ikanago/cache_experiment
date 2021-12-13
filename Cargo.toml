@@ -1,5 +1,5 @@
 [workspace]
-members = ["common", "sync_naive_lru"]
+members = ["benchmark", "common", "sync_naive_lru"]
 
 [profile.dev]
 debug = 0
